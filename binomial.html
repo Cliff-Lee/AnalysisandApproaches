@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Binomial Distribution Applet</title>
+    <meta charset="UTF-8">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+        }
+        #controls {
+            margin-bottom: 20px;
+        }
+        #controls label {
+            display: block;
+            margin-top: 10px;
+        }
+        #controls input[type="number"] {
+            width: 80px;
+            margin-left: 10px;
+        }
+        #results {
+            margin-top: 20px;
+        }
+        #distributionChart {
+            max-width: 800px;
+            margin-top: 30px;
+        }
+        #simulateSection {
+            margin-top: 20px;
+        }
+        #simulateSection label {
+            display: inline-block;
+            margin-right: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Binomial Distribution</h1>
+
+    <div id="controls">
+        <label for="nInput">
+            Number of Trials (n): <span id="nValue">10</span>
+            <input type="number" id="nInput" min="1" max="50" value="10">
+            <input type="range" id="nSlider" min="1" max="50" value="10">
+        </label><br>
+
+        <label for="pInput">
+            Probability of Success (p): <span id="pValue">0.50</span>
+            <input type="number" id="pInput" min="0" max="1" step="0.01" value="0.5">
+            <input type="range" id="pSlider" min="0" max="1" step="0.01" value="0.5">
+        </label><br><br>
+
+        <div id="simulateSection">
+            <label for="numSimulationsInput">Number of Simulations:</label>
+            <input type="number" id="numSimulationsInput" min="1" value="10000">
+            <button id="simulateButton">Run Simulation</button>
+        </div>
+    </div>
+
+    <div id="results">
+        <h2>Results</h2>
+        <p>Theoretical Expected Value (E[X]): <span id="expectedValue">5.00</span></p>
+        <p>Theoretical Variance (Var[X]): <span id="variance">2.50</span></p>
+        <p>Experimental Expected Value (E[X]): <span id="expExpectedValue">--</span></p>
+        <p>Experimental Variance (Var[X]): <span id="expVariance">--</span></p>
+    </div>
+
+    <canvas id="distributionChart"></canvas>
+
+    <!-- Include Chart.js library -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <script>
+        // Get elements
+        const nSlider = document.getElementById('nSlider');
+        const pSlider = document.getElementById('pSlider');
+        const nInput = document.getElementById('nInput');
+        const pInput = document.getElementById('pInput');
+        const nValueDisplay = document.getElementById('nValue');
+        const pValueDisplay = document.getElementById('pValue');
+        const expectedValueDisplay = document.getElementById('expectedValue');
+        const varianceDisplay = document.getElementById('variance');
+        const expExpectedValueDisplay = document.getElementById('expExpectedValue');
+        const expVarianceDisplay = document.getElementById('expVariance');
+        const ctx = document.getElementById('distributionChart').getContext('2d');
+        const simulateButton = document.getElementById('simulateButton');
+        const numSimulationsInput = document.getElementById('numSimulationsInput');
+
+        let distributionChart;
+        let simulationData = [];
+        let totalSimulations = 0;
+
+        function factorial(n) {
+            if (n === 0 || n === 1) return 1;
+            let result = 1;
+            for (let i = 2; i <= n; i++) {
+                result *= i;
+            }
+            return result;
+        }
+
+        function combination(n, k) {
+            return factorial(n) / (factorial(k) * factorial(n - k));
+        }
+
+        function binomialPMF(n, p) {
+            const pmf = [];
+            for (let k = 0; k <= n; k++) {
+                const prob = combination(n, k) * Math.pow(p, k) * Math.pow(1 - p, n - k);
+                pmf.push(prob);
+            }
+            return pmf;
+        }
+
+        function updateValues() {
+            let n = parseInt(nInput.value);
+            let p = parseFloat(pInput.value);
+
+            // Ensure n and p are within valid ranges
+            if (isNaN(n) || n < 1) n = 1;
+            if (isNaN(p) || p < 0) p = 0;
+            if (p > 1) p = 1;
+            if (n > 50) n = 50;
+
+            // Update sliders and inputs
+            nInput.value = n;
+            nSlider.value = n;
+            pInput.value = p;
+            pSlider.value = p;
+
+            nValueDisplay.textContent = n;
+            pValueDisplay.textContent = p.toFixed(2);
+
+            const expectedValue = n * p;
+            const variance = n * p * (1 - p);
+
+            expectedValueDisplay.textContent = expectedValue.toFixed(2);
+            varianceDisplay.textContent = variance.toFixed(2);
+
+            // Clear previous simulation data
+            simulationData = [];
+            expExpectedValueDisplay.textContent = '--';
+            expVarianceDisplay.textContent = '--';
+
+            // Update the plot
+            updateChart(n, p);
+        }
+
+        function updateChart(n, p) {
+            const labels = [];
+            for (let k = 0; k <= n; k++) {
+                labels.push(k);
+            }
+
+            const pmf = binomialPMF(n, p);
+
+            const datasets = [
+                {
+                    label: 'Theoretical Probability',
+                    data: pmf,
+                    backgroundColor: 'rgba(54, 162, 235, 0.5)',
+                    borderColor: 'rgba(54, 162, 235, 1)',
+                    borderWidth: 1,
+                }
+            ];
+
+            if (simulationData.length > 0) {
+                datasets.push({
+                    label: 'Simulated Frequency',
+                    data: simulationData.map(freq => freq / totalSimulations),
+                    backgroundColor: 'rgba(255, 99, 132, 0.5)',
+                    borderColor: 'rgba(255, 99, 132, 1)',
+                    borderWidth: 1,
+                });
+            }
+
+            if (distributionChart) {
+                distributionChart.data.labels = labels;
+                distributionChart.data.datasets = datasets;
+                distributionChart.update();
+            } else {
+                distributionChart = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: labels,
+                        datasets: datasets
+                    },
+                    options: {
+                        scales: {
+                            x: {
+                                title: {
+                                    display: true,
+                                    text: 'Number of Successes (k)'
+                                },
+                                ticks: {
+                                    precision: 0
+                                }
+                            },
+                            y: {
+                                title: {
+                                    display: true,
+                                    text: 'Probability / Frequency'
+                                },
+                                beginAtZero: true
+                            }
+                        }
+                    }
+                });
+            }
+        }
+
+        function synchronizeNInput() {
+            nInput.value = nSlider.value;
+            updateValues();
+        }
+
+        function synchronizeNSlider() {
+            nSlider.value = nInput.value;
+            updateValues();
+        }
+
+        function synchronizePInput() {
+            pInput.value = pSlider.value;
+            updateValues();
+        }
+
+        function synchronizePSlider() {
+            pSlider.value = pInput.value;
+            updateValues();
+        }
+
+        function runSimulation() {
+            const n = parseInt(nInput.value);
+            const p = parseFloat(pInput.value);
+            let numSimulations = parseInt(numSimulationsInput.value);
+
+            // Validate number of simulations
+            if (isNaN(numSimulations) || numSimulations < 1) {
+                numSimulations = 1;
+                numSimulationsInput.value = numSimulations;
+            }
+
+            totalSimulations = numSimulations;
+
+            // Initialize frequencies array
+            const frequencies = new Array(n + 1).fill(0);
+            let sum = 0;
+            let sumSq = 0;
+
+            // Run simulations
+            for (let i = 0; i < numSimulations; i++) {
+                let successes = 0;
+                for (let j = 0; j < n; j++) {
+                    if (Math.random() < p) {
+                        successes++;
+                    }
+                }
+                frequencies[successes]++;
+                sum += successes;
+                sumSq += successes * successes;
+            }
+
+            // Normalize frequencies to probabilities
+            simulationData = frequencies;
+            const mean = sum / numSimulations;
+            const variance = (sumSq / numSimulations) - (mean * mean);
+
+            expExpectedValueDisplay.textContent = mean.toFixed(2);
+            expVarianceDisplay.textContent = variance.toFixed(2);
+
+            // Update the chart
+            updateChart(n, p);
+        }
+
+        // Event listeners for sliders and inputs
+        nSlider.addEventListener('input', synchronizeNInput);
+        nInput.addEventListener('input', synchronizeNSlider);
+
+        pSlider.addEventListener('input', synchronizePInput);
+        pInput.addEventListener('input', synchronizePSlider);
+
+        // Event listener for the simulate button
+        simulateButton.addEventListener('click', runSimulation);
+
+        // Initialize values on page load
+        updateValues();
+
+    </script>
+</body>
+</html>
